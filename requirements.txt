@@ -1,6 +1,21 @@
-streamlit
-pandas
-numpy
-yfinance
-requests
-pyarrow
+# Core app dependencies
+streamlit>=1.28.0
+pandas>=1.5.3
+numpy>=1.24.0
+yfinance>=0.2.28
+requests>=2.31.0
+pyarrow>=8.0.0
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Optional but recommended (for performance and stability)
+fastparquet>=2023.2.0      # optional: alternate Parquet engine (speeds up caching)
+lxml>=4.9.0                # robust XML/RSS parsing for sentiment
+tqdm>=4.65.0               # optional progress visualization (used internally by yfinance)
+
+# Notes:
+# - pyarrow or fastparquet is required for reading/writing parquet cache files.
+# - lxml improves parsing of Google News RSS feeds.
+# - yfinance handles all market data fetching (no need for Yahoo API keys).
+# - requests handles sentiment/news/fundamental API calls.
+# - Compatible with Python 3.9–3.12.
