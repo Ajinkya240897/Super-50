@@ -394,9 +394,27 @@ def compute_metrics(tk, days, universe_closes=None, fmp_key=None):
     conf = int(max(30, min(99, conf)))
 
     # beginner-friendly why text (includes bootstrap summary & Kelly guidance)
-    why = (f"{name} ({tk}) — Momentum, historic forward checks and news suggest a positive move. "
-           f"Bootstrap mean ≈ {bootstrap['mean']*100:.2f}%, chance positive ≈ {bootstrap['pos_rate']*100:.0f}%. "
-           f"Kelly suggestion (theoretical): {kelly*100:.1f}% of portfolio.")
+    # ---------- START: simplified, non-technical description ----------
+    try:
+        pos_chance = int(round(bootstrap.get("pos_rate", 0) * 100))
+    except:
+        pos_chance = 0
+    exp_pct = expected * 100.0
+
+    if exp_pct >= 3.0:
+        why = (f"{name} ({tk}) — Recently it has shown strong upward movement and market interest. "
+               f"Data suggests a good chance ({pos_chance}%) of a positive move over the selected period.")
+    elif exp_pct >= 1.5:
+        why = (f"{name} ({tk}) — The company is showing steady improvement and positive interest from the market. "
+               f"It looks reasonably likely to give a healthy gain over your selected holding period.")
+    elif exp_pct > 0:
+        why = (f"{name} ({tk}) — This is a stable company with steady business. "
+               f"It may deliver small but safer gains over the chosen period.")
+    else:
+        why = (f"{name} ({tk}) — The company is reliable but near-term gains appear limited. "
+               f"Consider this pick mainly for stability rather than quick profit.")
+    # ---------- END: simplified description ----------
+
     return {"ticker": tk, "name": name, "expected": float(expected), "score": float(score), "sector": sector,
             "confidence": conf, "avg_vol": avg_vol, "marketCap": mc, "why": why, "bootstrap": bootstrap, "kelly": kelly, "sharpe": sharpe}
 
