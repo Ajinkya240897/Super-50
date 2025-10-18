@@ -1,4 +1,3 @@
-
 # streamlit_super50.py
 import streamlit as st
 st.set_page_config(page_title='Super50', layout='wide')
@@ -23,7 +22,7 @@ with st.sidebar.expander('Inputs (required)'):
 st.markdown('<div class="info">Backend uses price history (yfinance), sentiment (Google RSS), momentum & multi-horizon checks. UI shows only final picks and beginner-friendly reasons.</div>', unsafe_allow_html=True)
 
 # imports
-import pandas as pd, numpy as np, yfinance as yf, requests, io, math, traceback, re, time
+import pandas as pd, numpy as np, yfinance as yf, requests, io, math, traceback, re
 from datetime import datetime, timedelta
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -40,7 +39,10 @@ NEG = set(['loss','down','decline','negative','warn','drop','weak','fraud','laws
 
 @st.cache_data(ttl=12*3600)
 def fetch_nse_symbols():
-    urls = ['https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv','https://archives.nseindia.com/content/equities/EQUITY_L.csv']
+    urls = [
+        'https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv',
+        'https://archives.nseindia.com/content/equities/EQUITY_L.csv'
+    ]
     s=set(); headers={'User-Agent':'Mozilla/5.0'}
     for u in urls:
         try:
@@ -70,7 +72,7 @@ def get_top_universe(n=TOP_UNIVERSE):
 
 def price_file(tk): return PRICES_DIR / f"{tk.replace('/','_')}.parquet"
 def price_fresh(tk,hours=24):
-    p=price_file(tk); 
+    p=price_file(tk)
     if not p.exists(): return False
     try: return (datetime.now()-datetime.fromtimestamp(p.stat().st_mtime))<timedelta(hours=hours)
     except: return False
@@ -86,7 +88,7 @@ def download_prices(tickers, years=3):
             tk=batch[0]
             try:
                 if isinstance(df, pd.DataFrame):
-                    sub=df[['Open','High','Low','Close','Volume']].dropna(); 
+                    sub=df[['Open','High','Low','Close','Volume']].dropna()
                     if not sub.empty: sub.to_parquet(price_file(tk))
             except: pass
         else:
@@ -95,10 +97,10 @@ def download_prices(tickers, years=3):
                     if isinstance(df, dict) or tk not in df:
                         single=yf.download(tk, start=start.strftime('%Y-%m-%d'), end=end.strftime('%Y-%m-%d'), progress=False)
                         if not single.empty:
-                            sub=single[['Open','High','Low','Close','Volume']].dropna(); 
+                            sub=single[['Open','High','Low','Close','Volume']].dropna()
                             if not sub.empty: sub.to_parquet(price_file(tk))
                     else:
-                        sub=df[tk][['Open','High','Low','Close','Volume']].dropna(); 
+                        sub=df[tk][['Open','High','Low','Close','Volume']].dropna()
                         if not sub.empty: sub.to_parquet(price_file(tk))
                 except: pass
 
@@ -106,7 +108,7 @@ def load_price(tk):
     p=price_file(tk)
     if not p.exists(): return None
     try:
-        df=pd.read_parquet(p); 
+        df=pd.read_parquet(p)
         if not isinstance(df.index, pd.DatetimeIndex): df.index=pd.to_datetime(df.index)
         return df
     except:
@@ -144,7 +146,6 @@ def est_expected(close, days):
     elif days<=90: expected=0.7*recent+0.3*hist
     elif days<=180: expected=0.55*recent+0.45*hist
     else: expected=0.45*recent+0.55*hist
-    # cap to reasonable range
     return float(np.clip(expected, -0.99, 0.99))
 
 def compute_one(tk, days, fmp_key=None):
@@ -158,11 +159,10 @@ def compute_one(tk, days, fmp_key=None):
     try: info=yf.Ticker(tk).info
     except: info={}
     mc=info.get('marketCap',0) or 0; name=info.get('shortName') or info.get('longName') or tk; sector=info.get('sector') or 'Other'
-    g_sent, g_cnt = google_sent(tk.replace('.NS',''), days=15)
+    g_sent, _ = google_sent(tk.replace('.NS',''), days=15)
     mom5 = (close.iloc[-1]/close.shift(5).iloc[-1]-1) if len(close)>5 else 0.0
     mom20 = (close.iloc[-1]/close.shift(20).iloc[-1]-1) if len(close)>20 else 0.0
     mom = 0.6*(mom5 if not math.isnan(mom5) else 0) + 0.4*(mom20 if not math.isnan(mom20) else 0)
-    # scoring - emphasis on expected for short term
     vol_pen = vol if vol>0 else 1e-9
     risk_adj = expected / vol_pen
     if days<=30:
@@ -175,19 +175,15 @@ def compute_one(tk, days, fmp_key=None):
     elif mc>1e9: conf+=8
     if avg_vol>150000: conf+=10
     conf = int(max(30, min(98, conf)))
-    why = f"{name} ({tk}) — Recommended for the selected period. Expected ≈ {expected*100:.2f}%.")
+    why = f"{name} ({tk}) — Recommended for the selected period based on steady performance, momentum, and sentiment, with expected return around {expected*100:.2f}%."
     return {'ticker':tk,'name':name,'expected':float(expected),'score':float(score),'sector':sector,'confidence':conf,'avg_vol':avg_vol,'marketCap':mc,'why':why}
-
-def select_top(results):
-    pool=sorted(results, key=lambda x:(x['score'], x['expected']), reverse=True)
-    return pool[:50]
 
 if generate:
     days=interval_map.get(interval,30)
-    st.info(f"Generating Super50 for {days} trading days (positive-expected enforced)." )
+    st.info(f"Generating Super50 for {days} trading days (positive-expected enforced).")
     try:
         universe = get_top_universe(TOP_UNIVERSE)
-        st.write(f"Universe size: {len(universe)} (Top by market cap)." )
+        st.write(f"Universe size: {len(universe)} (Top by market cap).")
         missing=[t for t in universe if not price_fresh(t)]
         if missing:
             with st.spinner(f"Downloading price history for {len(missing)} tickers..."):
@@ -198,50 +194,28 @@ if generate:
             for fut in as_completed(futures):
                 try:
                     res=fut.result()
-                    if res and (res.get('marketCap',0)>0 or res.get('avg_vol',0)>0):
+                    if res and res['expected']>0:
                         results.append(res)
                 except: pass
         if not results:
             st.error('No results computed. Check network or price downloads.')
         else:
-            min_req = MIN_EXPECTED.get(days, 0.0)
-            primary = [r for r in results if (r['expected']>=min_req and r['expected']>0)]
-            if len(primary) < 50:
-                positive = [r for r in results if r['expected']>0 and r not in primary]
-                combined = sorted(primary + positive, key=lambda x:(x['score'], x['expected']), reverse=True)
-            else:
-                combined = sorted(primary, key=lambda x:(x['score'], x['expected']), reverse=True)
-            final = combined[:50]
-            # if still less than 50, pad with best remaining (avoid extreme negatives)
-            if len(final) < 50:
-                remaining = [r for r in sorted(results, key=lambda x:(x['expected'], x['score']), reverse=True) if r not in final]
-                for r in remaining:
-                    if r['expected'] < -0.05: continue
-                    final.append(r)
-                    if len(final)>=50: break
-            # annotate flags
-            for r in final:
-                r['flag_below_threshold'] = (r['expected'] < min_req or r['expected'] <= 0)
-            if len(final) < 50:
-                st.warning('Could not find 50 items meeting strict thresholds; returning best available picks.')
-            st.success(f"Super50 prepared ({len(final)})." )
+            final = sorted(results, key=lambda x:(x['score'], x['expected']), reverse=True)[:50]
+            st.success(f"Super50 prepared ({len(final)}).")
             st.markdown('<div class="grid">', unsafe_allow_html=True)
             for i,m in enumerate(final, start=1):
                 exp_pct=m['expected']*100; conf=m.get('confidence',50); why=m.get('why','')
-                caution = "<div class='warn'>Note: below expected threshold — use caution.</div>" if m.get('flag_below_threshold') else ''
-                html=("<div class='card'>"
+                html=(f"<div class='card'>"
                       f"<div><span class='badge'>{m.get('sector','Other')}</span><span style='float:right;font-weight:700'>{i}. {m['ticker']}</span></div>"
-                      "<div style='margin-top:8px;'>"
+                      f"<div style='margin-top:8px;'>"
                       f"<div style='font-size:16px;font-weight:700;color:#0b3d91'>{m.get('name','')}</div>"
                       f"<div style='font-size:13px;color:#475569;margin-top:6px;'>Expected: <strong>{exp_pct:.2f}%</strong> | Confidence: <strong>{conf}/100</strong></div>"
                       f"<div style='margin-top:8px;'>{why}</div>"
-                      f"{caution}"
-                      "</div></div>")
+                      f"</div></div>")
                 st.markdown(html, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
-            if final:
-                df=pd.DataFrame([{'rank':i+1,'ticker':m['ticker'],'name':m.get('name',''),'expected_pct':m.get('expected',0)*100,'marketCap':m.get('marketCap',0),'sector':m.get('sector',''),'confidence':m.get('confidence',0),'flag_below_threshold':m.get('flag_below_threshold',False)} for i,m in enumerate(final)])
-                st.download_button('Download Super50 CSV', df.to_csv(index=False), file_name='super50_top50.csv', mime='text/csv')
+            df=pd.DataFrame([{'rank':i+1,'ticker':m['ticker'],'name':m['name'],'expected_pct':m['expected']*100,'sector':m['sector'],'confidence':m['confidence']} for i,m in enumerate(final)])
+            st.download_button('Download Super50 CSV', df.to_csv(index=False), file_name='super50_top50.csv', mime='text/csv')
     except Exception as e:
         st.error('Generation failed: '+str(e))
         st.error(traceback.format_exc())
