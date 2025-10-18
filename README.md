@@ -1,0 +1,1 @@
+Super50 final package\nFiles:\n- streamlit_super50.py\n- prewarm_cache.py\n- requirements.txt\nQuick start: pip install -r requirements.txt; (optional) python prewarm_cache.py; streamlit run streamlit_super50.py\n
